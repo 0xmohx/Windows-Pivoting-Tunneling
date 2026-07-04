@@ -15,13 +15,25 @@ The assessment covered:
 - Initial foothold through a web shell
 - Internal network enumeration
 - SSH Dynamic Port Forwarding
-- SOCKS proxy creation
+- SOCKS Proxy Creation
 - Proxychains
-- Lateral Movement
 - Credential Discovery
-- LSASS credential extraction
+- Lateral Movement
+- LSASS Credential Extraction
 - Nested Pivoting
 - Remote Desktop over SOCKS
+
+---
+
+# Lab Information
+
+| Item | Value |
+|------|-------|
+| Platform | HTB Academy |
+| Module | Pivoting, Tunneling & Port Forwarding |
+| Environment | Multi-segment Internal Network |
+| Operating Systems | Linux & Windows |
+| Techniques | Pivoting, SSH, SOCKS, Proxychains, RDP, LSASS |
 
 ---
 
@@ -29,7 +41,35 @@ The assessment covered:
 
 The attack path followed the network below.
 
-> *(Insert network-map.png here)*
+![Network Diagram](../../images/HTB/Pivoting-Tunneling-Skills-Assessment/network-map.png)
+
+```text
+                 Kali
+             10.10.14.97
+                   │
+          SSH -D 9050 (SOCKS)
+                   │
+     ┌─────────────────────────┐
+     │ Pivot Host              │
+     │10.129.74.17             │
+     │172.16.5.15              │
+     └─────────────────────────┘
+                   │
+          Internal Network
+                   │
+        ┌───────────────────┐
+        │172.16.5.35         │
+        │SSH/RDP/SMB/WinRM   │
+        └───────────────────┘
+                   │
+         SSH -D 1081 (Nested)
+                   │
+        ─────────────────────────
+             172.16.6.0/24
+        ─────────────────────────
+        │           │          │
+ 172.16.6.25   172.16.6.35 172.16.6.45
+```
 
 ---
 
@@ -37,7 +77,7 @@ The attack path followed the network below.
 
 The target exposed the following services.
 
-```
+```text
 22/tcp open  ssh
 80/tcp open  http
 ```
@@ -46,11 +86,15 @@ Browsing the HTTP service revealed a pre-existing web shell.
 
 The web shell was used to perform local enumeration of the Linux host.
 
+![Web Shell](../../images/HTB/Pivoting-Tunneling-Skills-Assessment/01-web-shell.png)
+
 ---
 
 # Step 2 - Credential Enumeration
 
 During filesystem enumeration, an SSH private key belonging to the **webadmin** user was discovered.
+
+![SSH Private Key](../../images/HTB/Pivoting-Tunneling-Skills-Assessment/02-webadmin-key.png)
 
 The private key permissions were corrected before use.
 
@@ -66,13 +110,15 @@ ssh -i id_rsa -D 9050 webadmin@<Pivot-IP>
 
 This created a local SOCKS proxy that allowed tools running on Kali to access networks reachable from the pivot host.
 
+![SSH Pivot](../../images/HTB/Pivoting-Tunneling-Skills-Assessment/03-ssh-pivot.png)
+
 ---
 
 # Step 3 - Internal Network Enumeration
 
 The pivot host contained a second network interface.
 
-```
+```text
 172.16.5.15/16
 ```
 
@@ -84,13 +130,13 @@ Using local enumeration commands such as:
 
 another internal Windows host was identified.
 
-```
+```text
 172.16.5.35
 ```
 
 Port enumeration revealed:
 
-```
+```text
 22
 135
 139
@@ -101,6 +147,8 @@ Port enumeration revealed:
 
 These services indicated that Remote Desktop and WinRM were available.
 
+![Internal Enumeration](../../images/HTB/Pivoting-Tunneling-Skills-Assessment/04-internal-enumeration.png)
+
 ---
 
 # Step 4 - Credential Discovery
@@ -109,19 +157,25 @@ During enumeration, valid user credentials were discovered.
 
 These credentials allowed authentication to the Windows workstation using Remote Desktop through the SOCKS tunnel.
 
+![RDP Login](../../images/HTB/Pivoting-Tunneling-Skills-Assessment/05-rdp-login.png)
+
 ---
 
 # Step 5 - Credential Extraction
 
 After obtaining access to the Windows workstation, an LSASS memory dump was analyzed offline.
 
-Tool used:
+The dump file was processed using **pypykatz**.
 
 ```bash
 pypykatz lsa minidump lsass.dmp
 ```
 
-The dump revealed another valid domain credential which would later be used to access a deeper internal network.
+![LSASS Dump](../../images/HTB/Pivoting-Tunneling-Skills-Assessment/06-lsass-dump.png)
+
+The analysis revealed another valid domain credential which would later be used to access a deeper internal network.
+
+![Recovered Credentials](../../images/HTB/Pivoting-Tunneling-Skills-Assessment/07-pypykatz-creds.png)
 
 ---
 
@@ -129,17 +183,19 @@ The dump revealed another valid domain credential which would later be used to a
 
 Additional enumeration revealed another subnet.
 
-```
+```text
 172.16.6.0/24
 ```
 
 Reachable hosts included:
 
-```
+```text
 172.16.6.25
 172.16.6.35
 172.16.6.45
 ```
+
+![Second Network Enumeration](../../images/HTB/Pivoting-Tunneling-Skills-Assessment/08-second-network-scan.png)
 
 ---
 
@@ -163,6 +219,8 @@ socks5 127.0.0.1 1081
 
 This produced a Nested Pivot architecture, allowing traffic to traverse multiple internal networks.
 
+![Nested Pivot](../../images/HTB/Pivoting-Tunneling-Skills-Assessment/09-nested-pivot.png)
+
 ---
 
 # Step 8 - Lateral Movement
@@ -182,25 +240,40 @@ proxychains -f sshpivot.conf xfreerdp \
 
 This confirmed successful multi-hop pivoting into the deeper internal subnet.
 
+![Final Access](../../images/HTB/Pivoting-Tunneling-Skills-Assessment/10-final-access.png)
+
 ---
 
-# Skills Practiced
+# Tools Used
+
+- Nmap
+- SSH
+- Proxychains
+- xfreerdp
+- pypykatz
+- Bash
+- Windows Remote Desktop
+
+---
+
+# Skills Demonstrated
 
 Throughout this assessment I practiced:
 
 - Web Shell Enumeration
-- Linux Enumeration
-- SSH Authentication
+- Linux Host Enumeration
+- SSH Key Authentication
 - SSH Dynamic Port Forwarding
-- SOCKS Proxying
+- SOCKS Proxy Configuration
 - Proxychains
-- Internal Network Enumeration
+- Internal Network Discovery
 - Credential Hunting
-- LSASS Analysis
-- Lateral Movement
+- Remote Desktop Pivoting
+- LSASS Memory Analysis
+- Credential Extraction
 - Nested Pivoting
-- RDP over SOCKS
 - Multi-hop Pivoting
+- Lateral Movement
 
 ---
 
